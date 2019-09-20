@@ -62,7 +62,7 @@ namespace SerializerTests
                              "Examples" + Environment.NewLine +
                              "Compare protobuf against MessagePackSharp for serialize and deserialize performance" + Environment.NewLine +
                              " SerializerTests -Runs 1 -test combined -serializer protobuf,MessagePackSharp" + Environment.NewLine +
-                             "Test how serializers perform when reference tracking is enabled. Currently that are BinaryFormatter,Protobuf_net and DataContract" + Environment.NewLine + 
+                             "Test how serializers perform when reference tracking is enabled. Currently that are BinaryFormatter,Protobuf_net and DataContract" + Environment.NewLine +
                              " Although Json.NET claim to have but it is not completely working." + Environment.NewLine +
                              " SerializerTests -Runs 1 -test combined -reftracking" + Environment.NewLine +
                              "Test SimdJsonSharpSerializer serializer with 3 million objects for serialize and deserialize." + Environment.NewLine +
@@ -80,7 +80,7 @@ namespace SerializerTests
         bool IsTouch = true;
         bool TestReferenceTracking = false;
         int[] NObjectsToDeSerialize = null;
-        string[] SerializerFilters = new string [] { "" };
+        string[] SerializerFilters = new string[] { "" };
 
 
         public Program(string[] args)
@@ -119,6 +119,7 @@ namespace SerializerTests
                 new Bois_LZ4<BookShelf>(Data, Touch),
                 new Jil<BookShelf>(Data, Touch),
                 new Protobuf_net<BookShelf>(Data, Touch),
+                new AvroSerializer<BookShelf>(Data, Touch),
                 new SlimSerializer<BookShelf>(Data, Touch),
 
 
@@ -139,7 +140,7 @@ namespace SerializerTests
 
             // if on command line a filter was specified filter the serializers to test according to filter by type name 
             SerializersToTest = SerializersToTest.Where(filter).ToList();
-            
+
 
             StartupSerializersToTest = new List<ISerializeDeserializeTester>
             {
@@ -230,6 +231,11 @@ namespace SerializerTests
                 new Protobuf_net<BookShelf2>(Data2, null),
                 new Protobuf_net<LargeBookShelf>(DataLarge, null),
 
+                new AvroSerializer<BookShelf>(Data, null),
+                new AvroSerializer<BookShelf1>(Data1, null),
+                new AvroSerializer<BookShelf2>(Data2, null),
+                new AvroSerializer<LargeBookShelf>(DataLarge, null),
+
                 new MessagePackSharp<BookShelf>(Data, null),
                 new MessagePackSharp<BookShelf1>(Data1, null),
                 new MessagePackSharp<BookShelf2>(Data2, null),
@@ -240,10 +246,10 @@ namespace SerializerTests
                 new MsgPack_Cli<BookShelf2>(Data2, null),
                 new MsgPack_Cli<LargeBookShelf>(DataLarge, null),
 
-	            new Utf8JsonSerializer<BookShelf>(Data, null),
-	            new Utf8JsonSerializer<BookShelf1>(Data1, null),
-	            new Utf8JsonSerializer<BookShelf2>(Data2, null),
-	            new Utf8JsonSerializer<LargeBookShelf>(DataLarge, null),
+                new Utf8JsonSerializer<BookShelf>(Data, null),
+                new Utf8JsonSerializer<BookShelf1>(Data1, null),
+                new Utf8JsonSerializer<BookShelf2>(Data2, null),
+                new Utf8JsonSerializer<LargeBookShelf>(DataLarge, null),
             };
 
             StartupSerializersToTest = StartupSerializersToTest.Where(filter).ToList();
@@ -265,6 +271,7 @@ namespace SerializerTests
                 new Bois_LZ4<ReferenceBookShelf>(DataReferenceBookShelf, null),
                 //new Jil<ReferenceBookShelf>(DataReferenceBookShelf, null),  // Jil does not support a dictionary with DateTime as key
                 new Protobuf_net<ReferenceBookShelf>(DataReferenceBookShelf, null),  // Reference tracking in protobuf can be enabled via attributes in the types!
+                new AvroSerializer<ReferenceBookShelf>(DataReferenceBookShelf, null),
                 new SlimSerializer<ReferenceBookShelf>(DataReferenceBookShelf, null),
 #if NET472  
                 // ZeroFormatter crashes on .NET Core 3 during serialize with: System.BadImageFormatException: 'Bad IL format.'
@@ -279,7 +286,7 @@ namespace SerializerTests
                 new JsonNet<ReferenceBookShelf>(DataReferenceBookShelf, null, refTracking:TestReferenceTracking),
                 new MsgPack_Cli<ReferenceBookShelf>(DataReferenceBookShelf, null),
                 new BinaryFormatter<ReferenceBookShelf>(DataReferenceBookShelf, null),
-				new Utf8JsonSerializer<ReferenceBookShelf>(DataReferenceBookShelf, null)
+                new Utf8JsonSerializer<ReferenceBookShelf>(DataReferenceBookShelf, null)
             };
 
             SerializersObjectReferencesToTest = SerializersObjectReferencesToTest.Where(filter).ToList();
@@ -303,10 +310,10 @@ namespace SerializerTests
             }
         }
 
-        static void PrintHelp(Exception ex=null)
+        static void PrintHelp(Exception ex = null)
         {
             Console.WriteLine(Help);
-            if( ex != null )
+            if (ex != null)
             {
                 Console.WriteLine($"{ex.GetType().Name}: {ex.Message}");
             }
@@ -332,7 +339,7 @@ namespace SerializerTests
                         break;
                     case "-serializer":
                         string serializers = NextLower() ?? "";
-                        SerializerFilters = serializers.Split(new char[] { ',' }, StringSplitOptions.RemoveEmptyEntries );
+                        SerializerFilters = serializers.Split(new char[] { ',' }, StringSplitOptions.RemoveEmptyEntries);
                         break;
                     case "-list":
                         CreateSerializersToTest();
@@ -347,7 +354,7 @@ namespace SerializerTests
                         break;
                     case "-n":
                         NObjectsToDeSerialize = NextLower()?.Split(new char[] { ',' }, StringSplitOptions.RemoveEmptyEntries)?.Select(int.Parse).ToArray();
-                        if( NObjectsToDeSerialize == null )
+                        if (NObjectsToDeSerialize == null)
                         {
                             throw new NotSupportedException("Missing object count after -N option");
                         }
@@ -403,7 +410,7 @@ namespace SerializerTests
 
             if (IsNGenWarn && !IsNGenned())
             {
-                Console.WriteLine( "Warning: Not NGenned! Results may not be accurate in your target deployment.");
+                Console.WriteLine("Warning: Not NGenned! Results may not be accurate in your target deployment.");
                 Console.WriteLine(@"Please execute Ngen.cmd install to Ngen all dlls.");
                 Console.WriteLine(@"To uninstall call Ngen.cmd uninstall");
                 Console.WriteLine(@"The script will take care that the assemblies are really uninstalled. NGen is a bit tricky there.");
@@ -418,7 +425,7 @@ namespace SerializerTests
         /// </summary>
         private List<ISerializeDeserializeTester> TestSerializers
         {
-            get {  return TestReferenceTracking ? SerializersObjectReferencesToTest : SerializersToTest;  }
+            get { return TestReferenceTracking ? SerializersObjectReferencesToTest : SerializersToTest; }
         }
 
 
@@ -447,12 +454,12 @@ namespace SerializerTests
         private void FirstCall()
         {
             var tester = new Test_O_N_Behavior(StartupSerializersToTest);
-            tester.TestSerialize(new int[] { 1 }, nRuns:1);
+            tester.TestSerialize(new int[] { 1 }, nRuns: 1);
         }
 
         string NextLower()
         {
-            if( Args.Count > 0 )
+            if (Args.Count > 0)
             {
                 return Args.Dequeue().ToLower();
             }
@@ -466,7 +473,7 @@ namespace SerializerTests
             foreach (ProcessModule module in Process.GetCurrentProcess().Modules)
             {
                 string file = module.ModuleName;
-                if( file == "SerializerTests.ni.exe" || file == "coreclr.dll")
+                if (file == "SerializerTests.ni.exe" || file == "coreclr.dll")
                 {
                     lret = true;
                 }
@@ -507,7 +514,7 @@ namespace SerializerTests
 
             Offset<BookFlat>[] books = new Offset<BookFlat>[nToCreate];
 
-            for(int i=1;i<=nToCreate;i++)
+            for (int i = 1; i <= nToCreate; i++)
             {
                 var title = builder.CreateString($"Book {i}");
                 var bookOffset = BookFlat.CreateBookFlat(builder, title, i);
@@ -542,11 +549,11 @@ namespace SerializerTests
         /// <param name="data"></param>
         void TouchFlat(BookShelfFlat data)
         {
-           if (!IsTouch) return;
+            if (!IsTouch) return;
 
-           string tmpTitle = null;
-           int tmpId = 0;
-           for(int i=0;i<data.BooksLength;i++)
+            string tmpTitle = null;
+            int tmpId = 0;
+            for (int i = 0; i < data.BooksLength; i++)
             {
                 var book = data.Books(i);
                 tmpTitle = book.Value.Title;
@@ -554,7 +561,7 @@ namespace SerializerTests
             }
         }
 
-        ZeroFormatterBookShelf  DataZeroFormatter(int nToCreate)
+        ZeroFormatterBookShelf DataZeroFormatter(int nToCreate)
         {
             var shelf = new ZeroFormatterBookShelf
             {
@@ -596,7 +603,7 @@ namespace SerializerTests
 
             string tmpTitle = null;
             int tmpId = 0;
-            for(int i=0;i<data.Books.Count;i++)
+            for (int i = 0; i < data.Books.Count; i++)
             {
                 tmpTitle = data.Books[i].Title;
                 tmpId = data.Books[i].Id;
@@ -610,7 +617,7 @@ namespace SerializerTests
 
             string tmpTitle = null;
             int tmpId = 0;
-            for(int i=0;i<data.Books.Count;i++)
+            for (int i = 0; i < data.Books.Count; i++)
             {
                 tmpTitle = data.Books[i].Title;
                 tmpId = data.Books[i].Id;
@@ -648,7 +655,7 @@ namespace SerializerTests
         {
             var lret = new ReferenceBookShelf();
             StringBuilder sb = new StringBuilder();
-            for(int i=0;i<10;i++)
+            for (int i = 0; i < 10; i++)
             {
                 sb.Append("This is a really long string");
             }
@@ -662,7 +669,7 @@ namespace SerializerTests
                     Name = largeStrSameReference,
                     Price = i
                 };
-                lret.Books.Add(new DateTime(DateTime.MinValue.Ticks+i, DateTimeKind.Utc), book);
+                lret.Books.Add(new DateTime(DateTime.MinValue.Ticks + i, DateTimeKind.Utc), book);
             }
             return lret;
         }
